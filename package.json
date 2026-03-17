@@ -1,0 +1,40 @@
+{
+  "name": "chatgpt-obsidian-importer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Import ChatGPT data exports into an Obsidian vault as structured Markdown notes.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "npm@11.0.0",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "clean": "rimraf dist",
+    "dev:import": "tsx src/scripts/import-chatgpt-export.ts",
+    "dev:import-latest": "tsx src/scripts/import-latest-chatgpt-export.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "release": "release-it --config .release-it.ts",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "validate": "npm run typecheck && npm run lint && npm run format:check",
+    "chatgpt:analyse": "tsx src/scripts/analyse-export.ts",
+    "chatgpt:diff": "tsx src/scripts/diff-export.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@release-it/conventional-changelog": "^10.0.1",
+    "@types/node": "^24.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
+    "eslint": "^9.34.0",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "release-it": "^19.0.4",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "conversationKeys": [
+    "create_time",
+    "current_node",
+    "id",
+    "mapping",
+    "title",
+    "update_time"
+  ],
+  "mappingNodeKeys": [
+    "children",
+    "id",
+    "message",
+    "parent"
+  ],
+  "messageKeys": [
+    "author",
+    "content",
+    "create_time",
+    "id",
+    "metadata"
+  ],
+  "authorKeys": [
+    "name",
+    "role"
+  ],
+  "contentKeys": [
+    "content_type",
+    "parts",
+    "text"
+  ],
+  "roles": [
+    "assistant",
+    "system",
+    "tool",
+    "unknown",
+    "user"
+  ],
+  "contentTypes": [
+    "text",
+    "unknown"
+  ],
+  "contentPartKinds": [
+    "string"
+  ]
+}
