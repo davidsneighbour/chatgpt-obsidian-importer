@@ -44,8 +44,13 @@ Optional:
  * @param args CLI arguments without the Node executable or script path.
  * @returns Parsed configuration.
  */
-function parseArgs(args: string[]): ImportLatestConfig & { baselineFile: string; skipPrecheck: boolean } {
-  const config: ImportLatestConfig = {
+interface ParsedLatestConfig extends ImportLatestConfig {
+  baselineFile: string;
+  skipPrecheck: boolean;
+}
+
+function parseArgs(args: string[]): ParsedLatestConfig {
+  const config: ParsedLatestConfig = {
     inboxDir: '',
     workingDir: '',
     archiveDir: '',
@@ -57,7 +62,7 @@ function parseArgs(args: string[]): ImportLatestConfig & { baselineFile: string;
     force: false,
     baselineFile: '',
     skipPrecheck: false,
-  } as ImportLatestConfig & { baselineFile: string; skipPrecheck: boolean };
+  };
 
   if (args.length === 0) {
     printHelp();

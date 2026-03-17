@@ -4,11 +4,11 @@ Import ChatGPT account exports into an Obsidian vault as structured Markdown not
 
 ## What it does
 
-* Reads `conversations.json` from an extracted ChatGPT export
-* Creates one Markdown note per conversation
-* Re-imports safely using `conversation_id` as the canonical key
-* Generates Obsidian index notes sorted by date and title
-* Optionally processes the latest ZIP from an inbox folder automatically
+- Reads `conversations.json` from an extracted ChatGPT export
+- Creates one Markdown note per conversation
+- Re-imports safely using `conversation_id` as the canonical key
+- Generates Obsidian index notes sorted by date and title
+- Optionally processes the latest ZIP from an inbox folder automatically
 
 ## Suggested workflow
 
@@ -47,23 +47,23 @@ npm run dev:import-latest -- \
 
 The importer defaults to these relative paths inside the vault:
 
-* `91 Sources/ChatGPT/Conversations`
-* `91 Sources/ChatGPT/Indexes`
+- `91 Sources/ChatGPT/Conversations`
+- `91 Sources/ChatGPT/Indexes`
 
 ## Example frontmatter
 
 ```yaml
 ---
 source: chatgpt
-conversation_id: "..."
-title: "..."
-created: "..."
-updated: "..."
+conversation_id: '...'
+title: '...'
+created: '...'
+updated: '...'
 message_count: 0
 participants:
   - user
   - assistant
-imported_at: "..."
+imported_at: '...'
 tags:
   - chatgpt
   - imported
@@ -72,14 +72,33 @@ tags:
 
 ## Suggested Dataview query
 
-~~~markdown
+````markdown
 ```dataview
 TABLE updated, message_count
 FROM "91 Sources/ChatGPT/Conversations"
 WHERE source = "chatgpt"
 SORT updated DESC
 ```
-~~~
+````
+
+## Schema guardrails
+
+Run a structural pre-import validation against the local baseline:
+
+```bash
+npm run chatgpt:precheck -- \
+  --input-dir /path/to/export \
+  --baseline-file config/chatgpt-export-baseline.json
+```
+
+You can also run diagnostics on export structure changes:
+
+```bash
+npm run chatgpt:analyse -- --input-dir /path/to/export
+npm run chatgpt:diff -- --old-input-dir /path/to/old --new-input-dir /path/to/new
+```
+
+The direct and latest-import commands support `--baseline-file` and `--skip-precheck`.
 
 ## Release
 

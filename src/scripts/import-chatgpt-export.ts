@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
+import process from 'node:process';
 import type { ImportConfig } from '../types/chatgpt-export.js';
+import { getNextValue } from '../utils/cli.js';
 import { importConversations } from '../utils/chatgpt-export.js';
 import {
   readBaselineFile,
@@ -8,7 +10,11 @@ import {
   runPreImportCheck,
   summariseExport,
 } from '../utils/export-analysis.js';
-import { getNextValue } from '../utils/cli.js';
+
+interface ParsedConfig extends ImportConfig {
+  baselineFile: string;
+  skipPrecheck: boolean;
+}
 
 /**
  * Print CLI help.
@@ -38,8 +44,8 @@ Optional:
  * @param args CLI arguments without the Node executable or script path.
  * @returns Parsed import configuration.
  */
-function parseArgs(args: string[]): ImportConfig & { baselineFile: string; skipPrecheck: boolean } {
-  const config: ImportConfig = {
+function parseArgs(args: string[]): ParsedConfig {
+  const config: ParsedConfig = {
     inputDir: '',
     vaultDir: '',
     outputDir: '91 Sources/ChatGPT/Conversations',
@@ -49,7 +55,7 @@ function parseArgs(args: string[]): ImportConfig & { baselineFile: string; skipP
     force: false,
     baselineFile: '',
     skipPrecheck: false,
-  } as ImportConfig & { baselineFile: string; skipPrecheck: boolean };
+  };
 
   if (args.length === 0) {
     printHelp();
@@ -111,7 +117,7 @@ function parseArgs(args: string[]): ImportConfig & { baselineFile: string; skipP
 
 const config = parseArgs(process.argv.slice(2));
 
-await (async (): Promise<void> => {
+await (async () => {
   if (config.baselineFile && !config.skipPrecheck) {
     const [conversations, baseline] = await Promise.all([
       readConversationsFromDirectory(config.inputDir),

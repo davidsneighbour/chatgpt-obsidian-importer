@@ -112,6 +112,10 @@ export async function pathExists(targetPath: string): Promise<boolean> {
  * @param error Unknown error value.
  * @returns Whether the value is a Node-style error.
  */
-export function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+interface ErrnoLike extends Error {
+  code?: string;
+}
+
+export function isNodeError(error: unknown): error is ErrnoLike {
   return error instanceof Error;
 }

@@ -6,7 +6,7 @@ import type {
   RawConversation,
   RawMessage,
 } from '../types/chatgpt-export.js';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { readFileIfExists, ensureDirectory, writeTextFile } from './fs.js';
 import { buildRelativeLink, slugify } from './paths.js';
@@ -76,9 +76,7 @@ export function normaliseConversation(raw: RawConversation): NormalisedConversat
  * @param mapping Raw mapping object.
  * @returns Normalised messages sorted by timestamp.
  */
-export function extractMessages(
-  mapping: RawConversation['mapping'],
-): NormalisedMessage[] {
+export function extractMessages(mapping: RawConversation['mapping']): NormalisedMessage[] {
   if (!mapping) {
     return [];
   }
@@ -229,11 +227,13 @@ export function renderByDateIndex(
   conversations: NormalisedConversation[],
   outputDir: string,
   indexDir: string,
+  fileNamesByConversationId?: Map<string, string>,
 ): string {
   const lines: string[] = ['# ChatGPT conversations by date', ''];
 
   for (const conversation of conversations) {
-    const fileName = buildConversationFileName(conversation);
+    const fileName =
+      fileNamesByConversationId?.get(conversation.id) ?? buildConversationFileName(conversation);
     const relativeTarget = buildRelativeLink(indexDir, outputDir, fileName);
     lines.push(
       `* ${conversation.updated ?? 'unknown'} - [[${relativeTarget}|${conversation.title}]]`,
@@ -256,12 +256,16 @@ export function renderByTitleIndex(
   conversations: NormalisedConversation[],
   outputDir: string,
   indexDir: string,
+  fileNamesByConversationId?: Map<string, string>,
 ): string {
-  const sorted = [...conversations].sort((left, right) => left.title.localeCompare(right.title, 'en'));
+  const sorted = [...conversations].sort((left, right) =>
+    left.title.localeCompare(right.title, 'en'),
+  );
   const lines: string[] = ['# ChatGPT conversations by title', ''];
 
   for (const conversation of sorted) {
-    const fileName = buildConversationFileName(conversation);
+    const fileName =
+      fileNamesByConversationId?.get(conversation.id) ?? buildConversationFileName(conversation);
     const relativeTarget = buildRelativeLink(indexDir, outputDir, fileName);
     lines.push(
       `* [[${relativeTarget}|${conversation.title}]] (${conversation.updated ?? 'unknown'})`,
@@ -306,13 +310,20 @@ export async function importConversations(config: ImportConfig): Promise<{
   await ensureDirectory(outputAbsoluteDir, config.dryRun);
   await ensureDirectory(indexAbsoluteDir, config.dryRun);
 
+  const existingConversationFiles = await loadExistingConversationFiles(outputAbsoluteDir);
+  const usedPaths = new Set(existingConversationFiles.values());
+  const fileNamesByConversationId = new Map<string, string>();
+
   let created = 0;
   let updated = 0;
   let skipped = 0;
 
   for (const conversation of conversations) {
     const fileName = buildConversationFileName(conversation);
-    const fullPath = path.join(outputAbsoluteDir, fileName);
+    const preferredPath = path.join(outputAbsoluteDir, fileName);
+    const knownPath = existingConversationFiles.get(conversation.id);
+    const fullPath = resolveOutputPath(preferredPath, knownPath, conversation.id, usedPaths);
+    fileNamesByConversationId.set(conversation.id, path.basename(fullPath));
     const markdown = renderConversationMarkdown(conversation);
     const existing = await readFileIfExists(fullPath);
 
@@ -325,26 +336,27 @@ export async function importConversations(config: ImportConfig): Promise<{
     if (existing !== markdown || config.force) {
       updated += 1;
       await writeTextFile(fullPath, markdown, config.dryRun, config.verbose);
-      continue;
+    } else {
+      skipped += 1;
+
+      if (config.verbose) {
+        console.log(`[chatgpt-import] Skipped unchanged file: ${fullPath}`);
+      }
     }
 
-    skipped += 1;
-
-    if (config.verbose) {
-      console.log(`[chatgpt-import] Skipped unchanged file: ${fullPath}`);
-    }
+    existingConversationFiles.set(conversation.id, fullPath);
   }
 
   await writeTextFile(
     path.join(indexAbsoluteDir, 'by-date.md'),
-    renderByDateIndex(conversations, config.outputDir, config.indexDir),
+    renderByDateIndex(conversations, config.outputDir, config.indexDir, fileNamesByConversationId),
     config.dryRun,
     config.verbose,
   );
 
   await writeTextFile(
     path.join(indexAbsoluteDir, 'by-title.md'),
-    renderByTitleIndex(conversations, config.outputDir, config.indexDir),
+    renderByTitleIndex(conversations, config.outputDir, config.indexDir, fileNamesByConversationId),
     config.dryRun,
     config.verbose,
   );
@@ -355,6 +367,80 @@ export async function importConversations(config: ImportConfig): Promise<{
     updated,
     skipped,
   };
+}
+
+/**
+ * Load existing conversation IDs from previously imported markdown files.
+ *
+ * @param outputAbsoluteDir Conversation output directory.
+ * @returns Mapping of conversation ID to markdown file path.
+ */
+async function loadExistingConversationFiles(
+  outputAbsoluteDir: string,
+): Promise<Map<string, string>> {
+  const entries = await readdir(outputAbsoluteDir, { withFileTypes: true });
+  const byConversationId = new Map<string, string>();
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.md')) {
+      continue;
+    }
+
+    const fullPath = path.join(outputAbsoluteDir, entry.name);
+    const content = await readFile(fullPath, 'utf8');
+    const conversationId = parseConversationIdFromFrontmatter(content);
+
+    if (conversationId) {
+      byConversationId.set(conversationId, fullPath);
+    }
+  }
+
+  return byConversationId;
+}
+
+/**
+ * Parse `conversation_id` from YAML frontmatter.
+ *
+ * @param markdown Conversation markdown file.
+ * @returns Parsed conversation ID or `null`.
+ */
+function parseConversationIdFromFrontmatter(markdown: string): string | null {
+  const match = markdown.match(/^---\n[\s\S]*?\nconversation_id:\s*"?([^"\n]+)"?\n/mu);
+  return match?.[1]?.trim() || null;
+}
+
+/**
+ * Resolve output path while preserving canonical conversation IDs.
+ *
+ * @param preferredPath Default path from title/date slug.
+ * @param knownPath Existing path for this conversation ID.
+ * @param conversationId Canonical conversation ID.
+ * @param usedPaths Paths reserved by existing files.
+ * @returns File path to write.
+ */
+function resolveOutputPath(
+  preferredPath: string,
+  knownPath: string | undefined,
+  conversationId: string,
+  usedPaths: Set<string>,
+): string {
+  if (knownPath) {
+    usedPaths.add(knownPath);
+    return knownPath;
+  }
+
+  if (!usedPaths.has(preferredPath)) {
+    usedPaths.add(preferredPath);
+    return preferredPath;
+  }
+
+  const parsed = path.parse(preferredPath);
+  const fallback = path.join(
+    parsed.dir,
+    `${parsed.name}-${conversationId.slice(0, 8)}${parsed.ext}`,
+  );
+  usedPaths.add(fallback);
+  return fallback;
 }
 
 /**

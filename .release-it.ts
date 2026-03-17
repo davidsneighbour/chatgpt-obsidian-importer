@@ -8,7 +8,7 @@ const config: Config = {
     tagName: 'v${version}',
     push: true,
     requireCleanWorkingDir: true,
-    requireBranch: ['main'],
+    requireBranch: 'main',
   },
   github: {
     release: true,
